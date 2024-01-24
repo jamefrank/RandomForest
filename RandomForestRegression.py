@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import random
 import math
-from sklearn.externals.joblib import Parallel, delayed
+from joblib import Parallel, delayed
 
 
 class Tree(object):
@@ -219,7 +219,7 @@ if __name__ == '__main__':
                                  random_state=66)
     train_count = int(0.7 * len(df))
     feature_list = ["CRIM", "ZN", "INDUS", "CHAS", "NOX", "RM", "AGE", "DIS", "RAD", 
-                    "TAX", "PTRATIO", "B", "LSTAT", "MEDV"]
+                    "TAX", "PTRATIO", "B", "LSTAT"]
     clf.fit(df.loc[:train_count, feature_list], df.loc[:train_count, 'label'])
 
     from sklearn import metrics
