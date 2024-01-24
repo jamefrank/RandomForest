@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
-"""
-@Env: Python2.7
-@Time: 2019/10/24 13:31
-@Author: zhaoxingfeng
-@Function：Random Forest（RF），随机森林二分类
-@Version: V1.2
-参考文献：
-[1] UCI. wine[DB/OL].https://archive.ics.uci.edu/ml/machine-learning-databases/wine.
-"""
+# -*- encoding: utf-8 -*-
+#@File    :   RandomForestClassification.py
+#@Time    :   2024/01/24 14:57:38
+#@Author  :   frank 
+#@Email:
+#@Description:
+
+
+
+
 import pandas as pd
 import numpy as np
 import random
 import math
 import collections
-from sklearn.externals.joblib import Parallel, delayed
+from joblib import Parallel, delayed
 
 
 class Tree(object):
@@ -78,8 +78,12 @@ class RandomForestClassifier(object):
     def fit(self, dataset, targets):
         """模型训练入口"""
         assert targets.unique().__len__() == 2, "There must be two class for targets!"
+        
+        # Series是一维数据结构，类似于带有标签索引的数组。DataFrame是二维数据结构，类似于电子表格或SQL表格，包含多个列
         targets = targets.to_frame(name='label')
 
+        # 这段代码的目的是从0到self.n_estimators-1的范围中随机选择self.n_estimators个不重复的元素，
+        # 并将结果存储在random_state_stages变量中。这样可以创建一个具有随机顺序的元素列表
         if self.random_state:
             random.seed(self.random_state)
         random_state_stages = random.sample(range(self.n_estimators), self.n_estimators)
@@ -93,19 +97,33 @@ class RandomForestClassifier(object):
             self.colsample_bytree = len(dataset.columns)
 
         # 并行建立多棵决策树
-        self.trees = Parallel(n_jobs=-1, verbose=0, backend="threading")(
+        # 使用joblib库中的Parallel类来创建并行计算的对象，
+        # n_jobs=-1表示使用所有可用的处理器核心进行并行计算，
+        # verbose=0表示不输出任何冗余信息，
+        # backend="threading"指定使用线程作为并行计算的后端
+        # joblib库是基于multiprocessing库的高级封装，提供了更简单和更高级的接口来实现并行计算
+        self.trees = Parallel(n_jobs=1, verbose=0, backend="threading")(
             delayed(self._parallel_build_trees)(dataset, targets, random_state)
                 for random_state in random_state_stages)
         
     def _parallel_build_trees(self, dataset, targets, random_state):
         """bootstrap有放回抽样生成训练样本集，建立决策树"""
+        # 随机获取样本的colsample_bytree个属性
         subcol_index = random.sample(dataset.columns.tolist(), self.colsample_bytree)
+        
+        # 从DataFrame中进行抽样
+        # n参数表示要抽取的样本数量:样本总量*下采样比例
+        # replace=True表示允许有放回地抽样，即一个样本可以被抽取多次
+        # random_state=random_state表示使用给定的随机种子进行抽样，从而保证在相同的随机种子下可以得到可重复的抽样结果
         dataset_stage = dataset.sample(n=int(self.subsample * len(dataset)), replace=True, 
                                         random_state=random_state).reset_index(drop=True)
         dataset_stage = dataset_stage.loc[:, subcol_index]
+        
+        # 同样对标签进行随机下采样，因为随机种子是确定的，所以可以保证上面的属性数据和下面的标签数据是对应起来的
         targets_stage = targets.sample(n=int(self.subsample * len(dataset)), replace=True, 
                                         random_state=random_state).reset_index(drop=True)
-
+        
+        # 根据属性和标签的下采样的样本数据创建决策树
         tree = self._build_single_tree(dataset_stage, targets_stage, depth=0)
         print(tree.describe_tree())
         return tree
@@ -164,6 +182,9 @@ class RandomForestClassifier(object):
             for split_value in unique_values:
                 left_targets = targets[dataset[feature] <= split_value]
                 right_targets = targets[dataset[feature] > split_value]
+                
+                # 基尼系数（Gini coefficient）是衡量分类模型不纯度的指标，用于评估模型的预测能力。
+                # 基尼系数的取值范围为0到1，其中0表示最佳的纯度（所有样本属于同一类别），而1表示最差的纯度（样本在每个类别中均匀分布）
                 split_gain = self.calc_gini(left_targets['label'], right_targets['label'])
 
                 if split_gain < best_split_gain:
@@ -219,7 +240,11 @@ class RandomForestClassifier(object):
 
 if __name__ == '__main__':
     df = pd.read_csv("source/wine.txt")
+    # 从数据框中选择'label'列值为1或2的行，并以随机顺序对这些行进行重新排序，并重置索引。结果是一个新的数据框，其中仅包含'label'列值为1或2的行，并且行的顺序是随机的，并且索引是重置过的。
+    # frac=1表示保留全部样本，random_state=66是随机种子，用于确保每次运行代码时得到相同的随机结果
+    # drop=True表示丢弃原来的索引列
     df = df[df['label'].isin([1, 2])].sample(frac=1, random_state=66).reset_index(drop=True)
+    
     clf = RandomForestClassifier(n_estimators=5,
                                  max_depth=5,
                                  min_samples_split=6,
@@ -228,6 +253,7 @@ if __name__ == '__main__':
                                  colsample_bytree="sqrt",
                                  subsample=0.8,
                                  random_state=66)
+    # 取总样本的70%作为训练集
     train_count = int(0.7 * len(df))
     feature_list = ["Alcohol", "Malic acid", "Ash", "Alcalinity of ash", "Magnesium", "Total phenols", 
                     "Flavanoids", "Nonflavanoid phenols", "Proanthocyanins", "Color intensity", "Hue", 
